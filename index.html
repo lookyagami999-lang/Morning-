@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+ <html lang="th">
+ <head>
+   <meta charset="UTF-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <title>🏛️ ระบบอัจฉริยะเทศบาลม่วงน้อย</title>
+   
+   <!-- ===== Firebase ===== -->
+   <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+   <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database-compat.js"></script>
+   
+   <!-- ===== แผนที่ ===== -->
+   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+   
+   <!-- ===== กราฟ ===== -->
+   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+   
+   <!-- ===== ฟอนต์ & ไอคอน ===== -->
+   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+   
+   <style>
+     :root {
+       --primary: #0066CC;
+       --primary-dark: #0052AA;
+       --secondary: #009966;
+       --accent: #8B5CF6;
+       --warning: #F59E0B;
+       --danger: #DC2626;
+       --info: #3B82F6;
+       --light: #F8FAFC;
+       --dark: #0F172A;
+       --gray: #64748B;
+       --shadow: 0 4px 12px rgba(0,0,0,0.08);
+       --shadow-lg: 0 8px 32px rgba(0,0,0,0.12);
+       --radius: 12px;
+       --radius-lg: 20px;
+     }
+     
+     * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Noto Sans Thai', sans-serif; }
+     body { 
+       background: linear-gradient(135deg, #F0F7FF 0%, #F8FAFC 50%, #FAF5FF 100%); 
+       min-height: 100vh; color: var(--dark); line-height: 1.6;
+     }
+     
+     @keyframes fadeInUp { from { opacity:0; transform: translateY(20px); } to { opacity:1; transform: translateY(0); } }
+     @keyframes spin { to { transform: rotate(360deg); } }
+     .page { display: none; animation: fadeInUp 0.4s ease; }
+     .page.active { display: block; }
+     
+     /* ===== HEADER ===== */
+     .top-bar {
+       background: linear-gradient(135deg, var(--primary), var(--accent));
+       color: white; padding: 24px 20px; position: sticky; top: 0; z-index: 100;
+       box-shadow: var(--shadow-lg); border-bottom-left-radius: 24px; border-bottom-right-radius: 24px;
+     }
+     .top-bar h1 { font-size: 19px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+     .top-bar p { font-size: 13px; opacity: 0.9; margin-top: 4px; }
+     .status-badge {
+       display: inline-block; background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px;
+       font-size: 12px; margin-top: 8px;
+     }
+     .status-badge i { color: #4ADE80; margin-right: 6px; }
+     
+     /* ===== NAV ===== */
+     .nav-container { position: sticky; top: 110px; z-index: 99; margin: 0 12px; }
+     .nav {
+       display: flex; background: white; border-radius: var(--radius-lg); box-shadow: var(--shadow);
+       padding: 6px; overflow-x: auto;
+     }
+     .nav-btn {
+       flex: 1; min-width: 80px; padding: 10px 6px; border: none; background: transparent;
+       font-size: 11px; color: var(--gray); cursor: pointer; border-radius: 8px;
+       transition: all 0.25s ease; font-weight: 500;
+     }
+     .nav-btn i { display: block; font-size: 18px; margin-bottom: 3px; }
+     .nav-btn.active {
+       background: linear-gradient(135deg, var(--primary), var(--accent));
+       color: white; font-weight: 600;
+     }
+     
+     /* ===== CONTAINER ===== */
+     .container { max-width: 540px; margin: 0 auto; padding: 16px 16px 40px; }
+     
+     /* ===== CARD ===== */
+     .card {
+       background: white; border-radius: var(--radius-lg); padding: 22px; margin-bottom: 18px;
+       box-shadow: var(--shadow);
+     }
+     .card-title {
+       font-size: 17px; font-weight: 700; color: var(--dark); margin-bottom: 18px;
+       display: flex; align-items: center; gap: 8px;
+     }
+     .card-title i { color: var(--primary); }
+     
+     /* ===== AI ALERT ===== */
+     .ai-alert {
+       background: linear-gradient(135deg, #FEF3C7, #FDE68A); border-left: 4px solid var(--warning);
+       padding: 14px 16px; border-radius: var(--radius); margin-bottom: 18px;
+     }
+     .ai-alert h4 { font-size: 14px; font-weight: 600; color: #92400E; margin-bottom: 4px; }
+     .ai-alert p { font-size: 13px; color: #78350F; line-height: 1.6; }
+     
+     /* ===== STATS ===== */
+     .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 10px; }
+     .stat-card {
+       background: white; border-radius: var(--radius); padding: 18px 14px; text-align: center;
+       box-shadow: var(--shadow); border-top: 4px solid;
+     }
+     .stat-card:nth-child(1) { border-top-color: var(--primary); }
+     .stat-card:nth-child(2) { border-top-color: var(--warning); }
+     .stat-card:nth-child(3) { border-top-color: var(--info); }
+     .stat-card:nth-child(4) { border-top-color: var(--secondary); }
+     .stat-card .num { font-size: 32px; font-weight: 700; }
+     .stat-card:nth-child(1) .num { color: var(--primary); }
+     .stat-card:nth-child(2) .num { color: var(--warning); }
+     .stat-card:nth-child(3) .num { color: var(--info); }
+     .stat-card:nth-child(4) .num { color: var(--secondary); }
+     .stat-card .label { font-size: 13px; color: var(--gray); margin-top: 4px; }
+     
+     /* ===== FORM ===== */
+     .form-group { margin-bottom: 16px; }
+     label { display: block; font-size: 14px; font-weight: 600; color: var(--dark); margin-bottom: 6px; }
+     input, select, textarea {
+       width: 100%; padding: 12px 14px; border: 2px solid #E2E8F0; border-radius: var(--radius);
+       font-size: 15px;
+     }
+     input:focus, select:focus, textarea:focus {
+       outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(0,102,204,0.1);
+     }
+     textarea { min-height: 100px; resize: vertical; }
+     
+     .btn {
+       width: 100%; padding: 14px; border: none; border-radius: var(--radius); font-size: 16px;
+       font-weight: 600; cursor: pointer;
+     }
+     .btn-primary {
+       background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+       color: white;
+     }
+     .btn-primary:hover { opacity: 0.95; }
+     
+     .message {
+       margin-top: 12px; padding: 12px; border-radius: var(--radius); display: none; font-size: 14px;
+     }
+     .message.success { background: #F0FDF4; color: #166534; display: block; border-left: 4px solid #22C55E; }
+     .message.error { background: #FEF2F2; color: #991B1B; display: block; border-left: 4px solid #EF4444; }
+     
+     /* ===== MAP ===== */
+     #map { height: 300px; width: 100%; border-radius: var(--radius); margin: 10px 0; border: 2px solid #E2E8F0; }
+     .map-buttons { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+     .map-btn {
+       padding: 8px 14px; border-radius: 8px; border: none; font-size: 13px;
+       display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+     }
+     .map-btn.primary { background: var(--primary); color: white; }
+     .map-btn.secondary { background: #F1F5F9; color: var(--dark); }
+     .coords-box {
+       background: var(--light); padding: 10px 14px; border-radius: var(--radius);
+       font-size: 13px; margin-top: 8px; font-family: monospace;
+     }
+     
+     /* ===== ISSUE LIST ===== */
+     .issue-item {
+       background: var(--light); border-radius: var(--radius); padding: 14px; margin-bottom: 10px;
+       border-left: 4px solid;
+     }
+     .issue-item.pending { border-left-color: var(--warning); }
+     .issue-item.working { border-left-color: var(--info); }
+     .issue-item.done { border-left-color: var(--secondary); }
+     .issue-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+     .issue-type { font-weight: 600; font-size: 14px; }
+     .issue-status { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+     .pending .issue-status { background: #FEF3C7; color: #92400E; }
+     .working .issue-status { background: #DBEAFE; color: #1E40AF; }
+     .done .issue-status { background: #D1FAE5; color: #065F46; }
+     
+     /* ===== ACTIVITIES ===== */
+     .activity-item {
+       border-left: 4px solid; padding: 14px; margin-bottom: 12px; border-radius: var(--radius);
+       background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+     }
+     .activity-item h4 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+     .activity-item p { font-size: 14px; color: var(--gray); }
+     .activity-item.service { border-left-color: var(--primary); background: #F0F7FF; }
+     .activity-item.health { border-left-color: var(--secondary); background: #F0FDF4; }
+     .activity-item.announce { border-left-color: #64748B; background: #F8FAFC; }
+     
+     /* ===== ADMIN LINK ===== */
+     .admin-access { text-align: center; margin-top: 20px; padding-top: 20px; border-top: 1px dashed #E2E8F0; }
+     .admin-access a { color: var(--primary); text-decoration: none; font-size: 14px; font-weight: 500; }
+     
+     /* ===== LOADING ===== */
+     .loading { text-align: center; padding: 30px; color: var(--gray); }
+     .spinner {
+       display: inline-block; width: 30px; height: 30px; border: 3px solid #E2E8F0;
+       border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite;
+     }
+     
+     .empty { text-align: center; padding: 40px 20px; color: var(--gray); font-size: 14px; }
+     
+     /* ===== CHART ===== */
+     .chart-container { position: relative; height: 220px; margin-top: 10px; }
+     
+     .hidden { display: none !important; }
+   </style>
+ </head>
+ <body>
+   <!-- ===== HEADER ===== -->
+   <div class="top-bar">
+     <h1>🏛️ ระบบอัจฉริยะเทศบาลม่วงน้อย</h1>
+     <p>อำเภอป่าซาง จังหวัดลำพูน — บริการประชาชนยุคดิจิทัล</p>
+     <div class="status-badge"><i class="fas fa-circle"></i> ระบบออนไลน์พร้อมใช้งาน</div>
+   </div>
+   <!-- ===== NAVIGATION ===== -->
+   <div class="nav-container">
+     <div class="nav">
+       <button class="nav-btn active" data-page="dashboard"><i class="fas fa-chart-pie"></i>ภาพรวม</button>
+       <button class="nav-btn" data-page="report"><i class="fas fa-exclamation-circle"></i>แจ้งปัญหา</button>
+       <button class="nav-btn" data-page="mapview"><i class="fas fa-map-marked-alt"></i>แผนที่</button>
+       <button class="nav-btn" data-page="analytics"><i class="fas fa-chart-bar"></i>วิเคราะห์</button>
+       <button class="nav-btn" data-page="activities"><i class="fas fa-calendar-alt"></i>กิจกรรม</button>
+     </div>
+   </div>
+   <div class="container">
+     <!-- ====================================================== -->
+     <!-- ===== 1. แดชบอร์ดภาพรวม ===== -->
+     <!-- ====================================================== -->
+     <div id="dashboard" class="page active">
+       
+       <div class="ai-alert">
+         <h4>🧠 สรุปสถานการณ์ประจำวัน</h4>
+         <p>ระบบทำงานปกติครับ! ยินดีต้อนรับสู่ระบบบริการประชาชนเทศบาลตำบลม่วงน้อย แจ้งปัญหาได้ตลอด 24 ชม. เจ้าหน้าที่จะรับเรื่องโดยเร็วที่สุดครับ 🙏</p>
+       </div>
+       
+       <div class="stats-grid">
+         <div class="stat-card">
+           <div class="num" id="statTotal">0</div>
+           <div class="label">เรื่องทั้งหมด</div>
+         </div>
+         <div class="stat-card">
+           <div class="num" id="statPending">0</div>
+           <div class="label">รอดำเนินการ</div>
+         </div>
+         <div class="stat-card">
+           <div class="num" id="statWorking">0</div>
+           <div class="label">กำลังดำเนินการ</div>
+         </div>
+         <div class="stat-card">
+           <div class="num" id="statDone">0</div>
+           <div class="label">เสร็จสิ้น</div>
+         </div>
+       </div>
+       
+       <div class="card">
+         <div class="card-title"><i class="fas fa-map-marker-alt"></i> ข้อมูลติดต่อ</div>
+         <p style="font-size:14px; line-height:1.9;">
+           <strong>ที่อยู่:</strong> ตำบลม่วงน้อย อำเภอป่าซาง จังหวัดลำพูน 51120<br>
+           <strong>โทร:</strong> 053-511234<br>
+           <strong>เวลาทำการ:</strong> จันทร์–ศุกร์ 08:30–16:30 น.
+         </p>
+       </div>
+       
+       <div class="card">
+         <div class="card-title"><i class="fas fa-list-check"></i> เรื่องล่าสุด</div>
+         <div id="recentList">
+           <div class="empty">ยังไม่มีเรื่องแจ้งเข้ามาเป็นรายแรกเลยครับ 📝</div>
+         </div>
+       </div>
+       
+       <div class="admin-access">
+         <a href="admin.html"><i class="fas fa-lock"></i> เข้าสู่ระบบจัดการ (เจ้าหน้าที่)</a>
+       </div>
+     </div>
+     <!-- ====================================================== -->
+     <!-- ===== 2. แจ้งปัญหา ===== -->
+     <!-- ====================================================== -->
+     <div id="report" class="page">
+       <div class="card">
+         <div class="card-title"><i class="fas fa-exclamation-triangle"></i> แจ้งปัญหา / ร้องเรียน</div>
+         <p style="font-size:14px; color:var(--gray); margin-bottom:20px;">กรอกข้อมูลและปักหมุดตำแหน่ง เจ้าหน้าที่จะรับเรื่องโดยเร็วครับ 🙏</p>
+         
+         <div class="form-group">
+           <label>📁 ประเภทปัญหา *</label>
+           <select id="rType">
+             <option value="">-- เลือกประเภท --</option>
+             <option value="ถนน/ทางเดิน">🛣️ ถนน/ทางเดิน</option>
+             <option value="ไฟสาธารณะ">💡 ไฟสาธารณะ</option>
+             <option value="น้ำประปา/ท่อระบายน้ำ">💧 น้ำประปา/ท่อระบายน้ำ</option>
+             <option value="ขยะ/สิ่งแวดล้อม">🗑️ ขยะ/สิ่งแวดล้อม</option>
+             <option value="สัตว์จรจัด">🐕 สัตว์จรจัด</option>
+             <option value="สุขาภิบาล">🏥 สุขาภิบาล</option>
+             <option value="อื่นๆ">📝 อื่นๆ</option>
+           </select>
+         </div>
+         
+         <div class="form-group">
+           <label>📍 ปักหมุดตำแหน่งบนแผนที่ *</label>
+           <div class="map-buttons">
+             <button type="button" class="map-btn primary" onclick="useMyLocation()"><i class="fas fa-location-crosshairs"></i> ตำแหน่งของฉัน</button>
+             <button type="button" class="map-btn secondary" onclick="clearMarker()"><i class="fas fa-eraser"></i> ลบหมุด</button>
+           </div>
+           <div id="map"></div>
+           <p style="font-size:12px; color:var(--gray); margin-top:6px;">💡 แตะ/คลิก บนแผนที่เพื่อปักหมุด</p>
+           <div class="coords-box">
+             พิกัด: <span id="coordsText">ยังไม่ได้ปักหมุด</span>
+           </div>
+           <input type="hidden" id="rLat" value="">
+           <input type="hidden" id="rLng" value="">
+         </div>
+         
+         <div class="form-group">
+           <label>📝 รายละเอียดสถานที่เพิ่มเติม</label>
+           <input type="text" id="rLocation" placeholder="เช่น หน้าบ้านเลขที่ 123, ซอยม่วงน้อย 5...">
+         </div>
+         
+         <div class="form-group">
+           <label>✏️ รายละเอียดปัญหา *</label>
+           <textarea id="rDetail" placeholder="อธิบายรายละเอียดปัญหา..."></textarea>
+         </div>
+         
+         <div class="form-group">
+           <label>📞 ชื่อ-เบอร์ติดต่อ</label>
+           <input type
+           <!-- ===== สคริปต์ควบคุมเมนูและหน้าเว็บ ===== -->
+   <script>
+     // สลับหน้าเมนู
+     document.addEventListener('DOMContentLoaded', function() {
+       const navButtons = document.querySelectorAll('.nav-btn');
+       const pages = document.querySelectorAll('.page');
+       
+       navButtons.forEach(btn => {
+         btn.addEventListener('click', function() {
+           // ลบ active จากทุกปุ่ม
+           navButtons.forEach(b => b.classList.remove('active'));
+           // ซ่อนทุกหน้า
+           pages.forEach(p => p.classList.remove('active'));
+           
+           // เปิดหน้าที่กด
+           this.classList.add('active');
+           const pageId = this.getAttribute('data-page');
+           document.getElementById(pageId).classList.add('active');
+           
+           // ถ้ากดไปที่แผนที่ ให้โหลดแผนที่
+           if (pageId === 'mapview' && typeof initMap === 'function') {
+             setTimeout(initMap, 100);
+           }
+         });
+       });
+     });
+   </script>
+ </body>
+ </html>
+ <!-- ===== สคริปต์ควบคุมทั้งหมด ===== -->
+   <script>
+     let map;
+     let marker;
+     const DEFAULT_CENTER = [18.6925, 99.1564]; // อ.ป่าซาง จ.ลำพูน
+     // รอให้หน้าโหลดเสร็จก่อน → ค่อยทำงาน
+     document.addEventListener('DOMContentLoaded', function() {
+       setupNavigation();
+     });
+     // เปลี่ยนหน้าเมนู
+     function setupNavigation() {
+       const navButtons = document.querySelectorAll('.nav-btn');
+       const pages = document.querySelectorAll('.page');
+       
+       navButtons.forEach(btn => {
+         btn.addEventListener('click', function() {
+           navButtons.forEach(b => b.classList.remove('active'));
+           pages.forEach(p => p.classList.remove('active'));
+           this.classList.add('active');
+           const pageId = this.getAttribute('data-page');
+           document.getElementById(pageId).classList.add('active');
+           
+           // ถ้ากดหน้าแจ้งปัญหา หรือ หน้าแผนที่ → โหลดแผนที่
+           if (pageId === 'report' || pageId === 'mapview') {
+             setTimeout(initMap, 200); // รอให้กล่องแสดงก่อน 200 มิลลิวินาที
+           }
+         });
+       });
+     }
+     // เริ่มต้นแผนที่
+     function initMap() {
+       const mapContainer = document.getElementById('map');
+       if (!mapContainer) return; // ถ้าไม่เจอ ก็หยุดทำงาน
+       
+       // ป้องกันสร้างแผนที่ซ้ำซ้อน
+       if (map) {
+         map.remove();
+         map = null;
+       }
+       
+       // สร้างแผนที่
+       map = L.map('map').setView(DEFAULT_CENTER, 13);
+       
+       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+         attribution: '&copy; OpenStreetMap contributors'
+       }).addTo(map);
+       
+       // กดบนแผนที่ = ปักหมุด
+       map.on('click', function(e) {
+         placeMarker(e.latlng);
+       });
+     }
+     // วางหมุด
+     function placeMarker(latlng) {
+       if (marker) map.removeLayer(marker);
+       marker = L.marker(latlng, { draggable: true }).addTo(map);
+       
+       document.getElementById('coordsText').textContent = 
+         latlng.lat.toFixed(6) + ', ' + latlng.lng.toFixed(6);
+       
+       const latInput = document.getElementById('rLat');
+       const lngInput = document.getElementById('rLng');
+       if (latInput) latInput.value = latlng.lat;
+       if (lngInput) lngInput.value = latlng.lng;
+     }
+     // ใช้ตำแหน่งปัจจุบัน
+     function useMyLocation() {
+       if (!navigator.geolocation) {
+         alert('เบราว์เซอร์ไม่รองรับตำแหน่ง กรุณาปักหมุดเอง');
+         return;
+       }
+       
+       navigator.geolocation.getCurrentPosition(
+         function(pos) {
+           const latlng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+           if (map) map.setView(latlng, 16);
+           placeMarker(latlng);
+         },
+         function() {
+           alert('ไม่สามารถระบุตำแหน่งได้ กรุณาปักหมุดเองบนแผนที่');
+         }
+       );
+     }
+     // ลบหมุด
+     function clearMarker() {
+       if (marker) {
+         map.removeLayer(marker);
+         marker = null;
+         const coordsText = document.getElementById('coordsText');
+         if (coordsText) coordsText.textContent = 'ยังไม่ได้ปักหมุด';
+         
+         const latInput = document.getElementById('rLat');
+         const lngInput = document.getElementById('rLng');
+         if (latInput) latInput.value = '';
+         if (lngInput) lngInput.value = '';
+       }
+     }
+   </script>
+ </body>
+ </html>
